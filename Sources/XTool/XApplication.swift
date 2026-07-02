@@ -10,7 +10,7 @@ import UIKit
 
 public extension UIApplication {
     /// 获取最顶层view
-    public static func topView() -> UIView? {
+    static func x_topView() -> UIView? {
         return UIApplication.shared
             .connectedScenes
             .compactMap { $0 as? UIWindowScene }
@@ -19,7 +19,7 @@ public extension UIApplication {
     }
     
     /// 获取最顶层controller
-    public static func topController() -> UIViewController? {
+    static func x_topController() -> UIViewController? {
         let rootVC = UIApplication.shared
             .connectedScenes
             .compactMap { $0 as? UIWindowScene }
@@ -30,8 +30,8 @@ public extension UIApplication {
     }
     
     /// 获取当前屏幕最上层可见视图控制器
-    public static func presentedViewController() -> UIViewController? {
-        guard let rootVC = topController() else {
+    static func x_presentedViewController() -> UIViewController? {
+        guard let rootVC = x_topController() else {
             return nil
         }
         var topVC = rootVC

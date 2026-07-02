@@ -9,7 +9,7 @@ import Foundation
 
 public extension Data {
     /// Data转字典
-    public var toDictionary: [String: Any]? {
+    var x_toDictionary: [String: Any]? {
         do {
             let jsonObject = try JSONSerialization.jsonObject(with: self, options: [])
             return jsonObject as? [String: Any]
@@ -22,7 +22,7 @@ public extension Data {
 
 public extension String {
     /// 将 JSON 字符串解析为字典
-    public func toDictionary() -> [String: Any] {
+    func x_toDictionary() -> [String: Any] {
         // 1. 将字符串转为 Data
         guard let data = self.data(using: .utf8) else {
             return [:]

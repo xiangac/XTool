@@ -25,7 +25,7 @@ public struct XAnimation {
         repeatCount:Float = .infinity,
         isRemovedOnCompletion:Bool = false
     ) -> CABasicAnimation {
-        return CABasicAnimation.scaleAnimation(
+        return CABasicAnimation.x_scaleAnimation(
             duration: duration,
             fromValue: fromValue,
             toValue: toValue,
@@ -45,7 +45,7 @@ public extension CABasicAnimation {
     ///     - autoreverses: 动画完成后是否自动反向播放
     ///     - repeatCount: 重复次数
     ///     - isRemovedOnCompletion: 页面切换或切后台时动画是否被移除
-    static func scaleAnimation(
+    static func x_scaleAnimation(
         duration:CFTimeInterval = 0.5,
         fromValue:Any = 1.0,
         toValue:Any = 1.0,
