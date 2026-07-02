@@ -10,7 +10,10 @@ import UIKit
 
 public extension UIView {
     
-    /// 1. 指定位置的切角处理
+    /// 快速指定部分圆角 (例如：仅左上和右上)
+    /// - Parameters:
+    ///   - corners: 需要裁剪的角 (如：[.topLeft, .topRight])
+    ///   - radius: 圆角半径
     func clipSpecifiedCorners(
         _ corners: UIRectCorner,
         withRadius radius: CGFloat
@@ -105,4 +108,61 @@ public extension UIView {
             targetView.isUserInteractionEnabled = true
         }
     }
+}
+
+//MARK: 手势扩展
+public extension UIView {
+    /// 内部使用的闭包包装器
+    private class ClosureWrapper: NSObject {
+        let closure: () -> Void
+        init(_ closure: @escaping () -> Void) {
+            self.closure = closure
+        }
+        @objc func invoke() { closure() }
+    }
+    
+    /// 关联属性的 Key
+    private static var closureKey: UInt8 = 0
+    
+    /// 一行代码快速添加点击手势 (带闭包回调)
+    /// - Parameter action: 点击后的回调事件
+    func x_addTapGesture(action: @escaping () -> Void) {
+        self.isUserInteractionEnabled = true
+        let target = ClosureWrapper(action)
+        
+        let tap = UITapGestureRecognizer(target: target, action: #selector(ClosureWrapper.invoke))
+        self.addGestureRecognizer(tap)
+        
+        // 动态绑定将 target 留在内存中
+        objc_setAssociatedObject(self, &UIView.closureKey, target, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+    }
+}
+
+//MARK: UI 布局快捷读写
+public extension UIView {
+    var x_x: CGFloat {
+        get { frame.origin.x }
+        set { frame.origin.x = newValue }
+    }
+    
+    var x_y: CGFloat {
+        get { frame.origin.y }
+        set { frame.origin.y = newValue }
+    }
+    
+    var x_width: CGFloat {
+        get { frame.size.width }
+        set { frame.size.width = newValue }
+    }
+    
+    var x_height: CGFloat {
+        get { frame.size.height }
+        set { frame.size.height = newValue }
+    }
+    
+    var x_size: CGSize {
+        get { frame.size }
+        set { frame.size = newValue }
+    }
+    
 }

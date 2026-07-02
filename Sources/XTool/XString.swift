@@ -78,3 +78,49 @@ public extension String {
         return ceil(boundingBox.height)
     }
 }
+
+//MARK: - 4. 国际化快捷多语言
+public extension String {
+    
+    /// 快捷获取当前系统语系对应的国际化文本
+    /// - Usage: `"login_btn_title".x_localized`
+    var x_localized: String {
+        return NSLocalizedString(self, comment: "")
+    }
+    
+    /// 支持动态传参的国际化文本
+    /// - Usage: `"welcome_message".x_localized(with: "张三")` -> "欢迎回来，张三！"
+    func x_localized(with arguments: CVarArg...) -> String {
+        return String(format: self.x_localized, arguments: arguments)
+    }
+}
+
+// MARK: - 5. JSON 转模型
+public extension String {
+    
+    /// 将 JSON 字符串解码为指定的 Codable 模型
+    /// - Usage: `let user = jsonStr.x_toModel(User.self)`
+    func x_toModel<T: Decodable>(_ type: T.Type) -> T? {
+        guard let data = self.data(using: .utf8) else { return nil }
+        return try? JSONDecoder().decode(T.self, from: data)
+    }
+}
+
+// 💡 业务层使用效果：
+// "1234567890".x_copyToClipboard() // 复制成功，同时手机咔哒震动一下，体验极佳
+// MARK: - 5. 一键复制到系统剪贴板
+public extension String {
+    
+    /// 将当前字符串一键复制到系统剪贴板
+    /// - Parameter triggerHaptic: 是否在复制成功时触发微震动反馈（默认开启，增强交互质感）
+    @MainActor func x_copyToClipboard() {
+        UIPasteboard.general.string = self
+        // 💡 联动我们刚才写好的 UIDevice 震动扩展
+        UIDevice.x_triggerHaptic(.success)
+    }
+    
+    /// 将当前字符串一键复制到系统剪贴板
+    func x_copy() {
+        UIPasteboard.general.string = self
+    }
+}
