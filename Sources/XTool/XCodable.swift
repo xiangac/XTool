@@ -52,9 +52,46 @@ public struct XDecodableDefault<Provider: XDefaultValueProvider>: Codable {
 }
 
 // 4. 让 Key 不存在时也能顺利走入 init(from:)
-public extension KeyedDecodingContainer {
+nonisolated public extension KeyedDecodingContainer {
     func decode<Provider: XDefaultValueProvider>(_ type: XDecodableDefault<Provider>.Type, forKey key: Key) throws -> XDecodableDefault<Provider> {
         try decodeIfPresent(type, forKey: key) ?? XDecodableDefault(wrappedValue: Provider.defaultValue)
     }
 }
 
+// 5. 直接对常用类型进行扩展，不使用属性包装器也可以解析nil
+nonisolated public extension KeyedDecodingContainer {
+    
+    // 1. 容错解析 String：遇到 null 或缺失时返回 ""
+    func decode(_ type: String.Type, forKey key: Key) throws -> String {
+        return try decodeIfPresent(String.self, forKey: key) ?? ""
+    }
+    
+    // 2. 容错解析 Int：遇到 null 或缺失时返回 0
+    func decode(_ type: Int.Type, forKey key: Key) throws -> Int {
+        return try decodeIfPresent(Int.self, forKey: key) ?? 0
+    }
+    
+    // 3. 容错解析 Double：遇到 null 或缺失时返回 0.0
+    func decode(_ type: Double.Type, forKey key: Key) throws -> Double {
+        return try decodeIfPresent(Double.self, forKey: key) ?? 0.0
+    }
+    
+    // 4. 容错解析 Bool：遇到 null 或缺失时返回 false
+    func decode(_ type: Bool.Type, forKey key: Key) throws -> Bool {
+        return try decodeIfPresent(Bool.self, forKey: key) ?? false
+    }
+    
+    // 5. 容错解析 数组：遇到 null 或缺失时返回空数组 []
+    func decode<T: Decodable>(_ type: [T].Type, forKey key: Key) throws -> [T] {
+        return try decodeIfPresent([T].self, forKey: key) ?? []
+    }
+    
+    // 6. 容错解析字典/子模型 (可选型)：如果字段解析失败，自动转为 nil 而不崩溃
+    func decodeIfPresent<T: Decodable>(_ type: T.Type, forKey key: Key) throws -> T? {
+        // 尝试获取该键的值，如果不存在、是 null 或者解析内部出错，都安全返回 nil
+        guard contains(key), try decodeNil(forKey: key) == false else {
+            return nil
+        }
+        return try? decode(T.self, forKey: key)
+    }
+}
