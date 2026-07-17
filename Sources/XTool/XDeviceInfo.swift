@@ -42,9 +42,15 @@ public extension UIDevice {
     /// 获取当前活跃的 Key Window
     @MainActor
     static var keyWindow: UIWindow? {
-        let windowScene = UIApplication.shared.connectedScenes
+        // 1. 先尝试获取活跃的 Scene
+        let activeScene = UIApplication.shared.connectedScenes
             .first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene
-        return windowScene?.windows.first(where: { $0.isKeyWindow })
+        
+        // 2. 如果拿不到活跃的（可能在启动初期），就拿任意一个连接着的 Scene
+        let anyScene = activeScene ?? (UIApplication.shared.connectedScenes.first as? UIWindowScene)
+        
+        // 3. 优先找 keyWindow，找不到就保底拿第一个 window
+        return anyScene?.windows.first(where: { $0.isKeyWindow }) ?? anyScene?.windows.first
     }
 
 }
