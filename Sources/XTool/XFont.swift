@@ -7,34 +7,82 @@
 
 import Foundation
 import UIKit
+import ObjectiveC
 
-//MARK: 无感全局字体动态缩放
-// 💡 使用效果：
-// 在工程启动（main / AppDelegate）时执行：UIFont.x_enableDynamicFontRules()
-// 之后你全项目写 `UIFont.systemFont(ofSize: 16)`，在所有屏幕和系统大字模式下，都会完美自动等比缩放！
+// 启动时调用：UIFont.x_enableDynamicFontRules()
+// 更推荐显式：UIFont.x_scaledSystemFont(ofSize: 16, weight: .medium)
 @MainActor
 public extension UIFont {
-    /// 一键开启全局字体自动化等比例动态缩放
+    
+    /// 按设计稿宽度缩放 + Dynamic Type 的系统字体（不依赖 swizzle，推荐业务直接使用）
+    static func x_scaledSystemFont(ofSize fontSize: CGFloat, weight: UIFont.Weight = .regular) -> UIFont {
+        let scaledSize = XLayout.scaled(fontSize)
+        let font = x_rawSystemFont(ofSize: scaledSize, weight: weight)
+        return UIFontMetrics.default.scaledFont(for: font)
+    }
+    
+    /// 开启系统字体工厂缩放（覆盖 `systemFont(ofSize:)` / `systemFont(ofSize:weight:)` / `boldSystemFont(ofSize:)`）
+    /// - Note: 不影响 `preferredFont(forTextStyle:)`、自定义字体、Storyboard 字号；会作用于所有调用上述工厂的代码（含系统/三方），请谨慎开启
+    /// - Note: 若已用 `x_scaledSystemFont`，无需再开 swizzle，避免语义重叠
     static func x_enableDynamicFontRules() {
-        let originalSelector = #selector(UIFont.systemFont(ofSize:))
-        let swizzledSelector = #selector(UIFont.x_systemFont(ofSize:))
+        swizzleLock.lock()
+        defer { swizzleLock.unlock() }
+        guard !hasSwizzled else { return }
         
-        guard let originalMethod = class_getClassMethod(UIFont.self, originalSelector),
-              let swizzledMethod = class_getClassMethod(UIFont.self, swizzledSelector) else { return }
-        
+        x_exchangeClassMethod(
+            original: #selector(UIFont.systemFont(ofSize:)),
+            swizzled: #selector(UIFont.x_swizzled_systemFont(ofSize:))
+        )
+        x_exchangeClassMethod(
+            original: #selector(UIFont.systemFont(ofSize:weight:)),
+            swizzled: #selector(UIFont.x_swizzled_systemFont(ofSize:weight:))
+        )
+        x_exchangeClassMethod(
+            original: #selector(UIFont.boldSystemFont(ofSize:)),
+            swizzled: #selector(UIFont.x_swizzled_boldSystemFont(ofSize:))
+        )
+        hasSwizzled = true
+    }
+    
+    private static var hasSwizzled = false
+    private static let swizzleLock = NSLock()
+    
+    private static func x_exchangeClassMethod(original: Selector, swizzled: Selector) {
+        guard let originalMethod = class_getClassMethod(UIFont.self, original),
+              let swizzledMethod = class_getClassMethod(UIFont.self, swizzled) else { return }
         method_exchangeImplementations(originalMethod, swizzledMethod)
     }
     
-    @objc private static func x_systemFont(ofSize fontSize: CGFloat) -> UIFont {
-        // 1. 联动我们之前的物理像素缩放逻辑，计算出当前屏幕的最佳磅数
-        let baseWidth: CGFloat = 393.0
-        let currentWidth = UIScreen.main.bounds.width
-        let scaledSize = (fontSize * currentWidth) / baseWidth
-        
-        // 2. 联动系统的 UIFontMetrics，让字体自动支持 iOS 系统设置里的“显示与亮度 -> 字体大小”
-        let font = UIFont.x_systemFont(ofSize: scaledSize) // 因为 Method Swizzling，这行实际调用的是原生的 systemFont
+    /// 不经过 swizzle 的系统字体（供缩放 API 与 swizzle 实现复用）
+    private static func x_rawSystemFont(ofSize size: CGFloat, weight: UIFont.Weight) -> UIFont {
+        if hasSwizzled {
+            // 交换后 x_swizzled_* 实际指向原实现
+            if weight == .bold {
+                return x_swizzled_boldSystemFont(ofSize: size)
+            }
+            return x_swizzled_systemFont(ofSize: size, weight: weight)
+        }
+        if weight == .bold {
+            return boldSystemFont(ofSize: size)
+        }
+        return systemFont(ofSize: size, weight: weight)
+    }
+    
+    @objc private static func x_swizzled_systemFont(ofSize fontSize: CGFloat) -> UIFont {
+        let scaledSize = XLayout.scaled(fontSize)
+        let font = UIFont.x_swizzled_systemFont(ofSize: scaledSize)
+        return UIFontMetrics.default.scaledFont(for: font)
+    }
+    
+    @objc private static func x_swizzled_systemFont(ofSize fontSize: CGFloat, weight: UIFont.Weight) -> UIFont {
+        let scaledSize = XLayout.scaled(fontSize)
+        let font = UIFont.x_swizzled_systemFont(ofSize: scaledSize, weight: weight)
+        return UIFontMetrics.default.scaledFont(for: font)
+    }
+    
+    @objc private static func x_swizzled_boldSystemFont(ofSize fontSize: CGFloat) -> UIFont {
+        let scaledSize = XLayout.scaled(fontSize)
+        let font = UIFont.x_swizzled_boldSystemFont(ofSize: scaledSize)
         return UIFontMetrics.default.scaledFont(for: font)
     }
 }
-
-

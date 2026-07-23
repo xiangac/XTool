@@ -9,36 +9,43 @@ import Foundation
 import UIKit
 
 public extension UIApplication {
-    /// 获取最顶层view
-    static func x_topView() -> UIView? {
-        return UIApplication.shared
-            .connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .flatMap { $0.windows }
-            .first { $0.isKeyWindow }
-    }
-    
-    /// 获取最顶层controller
-    static func x_topController() -> UIViewController? {
-        let rootVC = UIApplication.shared
-            .connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .flatMap { $0.windows }
-            .first { $0.isKeyWindow }?
-            .rootViewController
-        return rootVC
-    }
-    
-    /// 获取当前屏幕最上层可见视图控制器
-    static func x_presentedViewController() -> UIViewController? {
-        guard let rootVC = x_topController() else {
-            return nil
-        }
-        var topVC = rootVC
-        while let presentedVC = topVC.presentedViewController {
-            topVC = presentedVC
-        }
+    /// 当前 Key Window（优先前台活跃 Scene，找不到则回退）
+    @MainActor
+    static func x_keyWindow() -> UIWindow? {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        let activeScene = scenes.first { $0.activationState == .foregroundActive }
+        let scene = activeScene ?? scenes.first
         
-        return topVC
+        guard let scene else { return nil }
+        return scene.windows.first(where: \.isKeyWindow) ?? scene.windows.first
+    }
+    
+    /// Key Window 的根视图控制器
+    @MainActor
+    static func x_rootViewController() -> UIViewController? {
+        x_keyWindow()?.rootViewController
+    }
+    
+    /// 当前最上层可见视图控制器（处理 present / Nav / Tab）
+    @MainActor
+    static func x_topViewController(
+        base: UIViewController? = nil
+    ) -> UIViewController? {
+        let base = base ?? x_rootViewController()
+        guard let base else { return nil }
+        
+        if let nav = base as? UINavigationController {
+            // visible 为 nil 时返回容器自身，避免 base:nil 再次回落到 root 造成死循环
+            guard let visible = nav.visibleViewController else { return nav }
+            return x_topViewController(base: visible)
+        }
+        if let tab = base as? UITabBarController {
+            guard let selected = tab.selectedViewController else { return tab }
+            return x_topViewController(base: selected)
+        }
+        if let presented = base.presentedViewController {
+            return x_topViewController(base: presented)
+        }
+        return base
     }
 }

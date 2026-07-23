@@ -8,161 +8,170 @@
 import Foundation
 import UIKit
 
+// MARK: - 圆角 / 边框 / 渐变
 public extension UIView {
     
-    /// 快速指定部分圆角 (例如：仅左上和右上)
+    /// 为指定角设置圆角遮罩
     /// - Parameters:
-    ///   - corners: 需要裁剪的角 (如：[.topLeft, .topRight])
-    ///   - radius: 圆角半径
-    func clipSpecifiedCorners(
-        _ corners: UIRectCorner,
-        withRadius radius: CGFloat
-    ) {
-        let path = UIBezierPath(roundedRect: self.bounds,
-                                byRoundingCorners: corners,
-                                cornerRadii: CGSize(width: radius, height: radius))
-        let maskLayer = CAShapeLayer()
-        maskLayer.frame = self.bounds
-        maskLayer.path = path.cgPath
-        self.layer.mask = maskLayer
-    }
-    
-    /// 2. 绘制线性渐变背景
-    func applyLinearGradient(
-        colors: [CGColor],
-        locations: [NSNumber]?,
-        startPoint: CGPoint,
-        endPoint: CGPoint
-    ) {
-        let gradientLayer = CAGradientLayer()
-        gradientLayer.colors = colors
-        gradientLayer.locations = locations
-        gradientLayer.startPoint = startPoint
-        gradientLayer.endPoint = endPoint
-        gradientLayer.frame = self.bounds
-        
-        // 插入到最底层
-        self.layer.insertSublayer(gradientLayer, at: 0)
-    }
-    
-    /// 3. 基础圆角配置
-    func applyCornerRadius(_ radius: CGFloat) {
-        self.renderSurface(radius: radius, borderWidth: 0, borderColor: nil)
-    }
-    
-    /// 4. 自定义遮罩切角
-    func setupMaskLayout(
-        corners: UIRectCorner,
-        radius: CGFloat
-    ) {
+    ///   - corners: 需要圆角的角，默认四角
+    ///   - radius: 圆角半径；传 `-1` 时使用高度一半（半圆）
+    /// - Note: 依赖当前 `bounds`，请在布局完成后再调用；尺寸变化后需重新调用
+    func x_roundCorners(_ corners: UIRectCorner = .allCorners, radius: CGFloat) {
         var finalRadius = radius
         if finalRadius == -1 {
-            finalRadius = self.bounds.height / 2.0 // 统一使用 bounds 比 frame 更安全
+            finalRadius = bounds.height / 2.0
+        }
+        let path = UIBezierPath(
+            roundedRect: bounds,
+            byRoundingCorners: corners,
+            cornerRadii: CGSize(width: finalRadius, height: finalRadius)
+        )
+        let maskLayer = CAShapeLayer()
+        maskLayer.frame = bounds
+        maskLayer.path = path.cgPath
+        layer.mask = maskLayer
+    }
+    
+    /// 设置圆角（无边框）
+    /// - Parameter radius: 圆角半径
+    func x_applyCornerRadius(_ radius: CGFloat) {
+        x_applyBorderStyle(radius: radius, borderWidth: 0, borderColor: nil)
+    }
+    
+    /// 设置圆角与边框
+    /// - Parameters:
+    ///   - radius: 圆角半径
+    ///   - borderWidth: 边框宽度
+    ///   - borderColor: 边框颜色，传 `nil` 则清除
+    func x_applyBorderStyle(radius: CGFloat, borderWidth: CGFloat, borderColor: UIColor?) {
+        layer.cornerRadius = radius
+        layer.borderWidth = borderWidth
+        layer.borderColor = borderColor?.cgColor
+        layer.masksToBounds = true
+    }
+    
+    /// 应用胶囊样式（圆角 = 高度一半）
+    /// - Note: 依赖当前 `bounds.height`
+    func x_applyCapsuleStyle() {
+        x_applyBorderStyle(radius: bounds.height / 2.0, borderWidth: 0, borderColor: nil)
+    }
+    
+    /// 应用线性渐变背景（插入最底层；重复调用会更新已有渐变层，不叠加）
+    /// - Parameters:
+    ///   - colors: 渐变色
+    ///   - direction: 渐变方向，默认从左到右
+    /// - Note: 依赖当前 `bounds`；尺寸变化后需再次调用以刷新 frame
+    func x_applyGradient(colors: [UIColor], direction: XGradientDirection = .leftToRight) {
+        let gradientLayer: CAGradientLayer
+        if let existing = layer.sublayers?.first(where: { $0.name == XViewGradientLayerName }) as? CAGradientLayer {
+            gradientLayer = existing
+        } else {
+            gradientLayer = CAGradientLayer()
+            gradientLayer.name = XViewGradientLayerName
+            layer.insertSublayer(gradientLayer, at: 0)
         }
         
-        let maskPath = UIBezierPath(roundedRect: self.bounds,
-                                    byRoundingCorners: corners,
-                                    cornerRadii: CGSize(width: finalRadius, height: finalRadius))
-        let maskLayer = CAShapeLayer()
-        maskLayer.frame = self.bounds
-        maskLayer.path = maskPath.cgPath
-        self.layer.mask = maskLayer
-    }
-    
-    /// 5. 完整边框与圆角设置
-    func renderSurface(
-        radius: CGFloat,
-        borderWidth: CGFloat,
-        borderColor: UIColor?
-    ) {
-        self.layer.cornerRadius = radius
-        self.layer.borderWidth = borderWidth
-        if let borderColor = borderColor {
-            self.layer.borderColor = borderColor.cgColor
-        } else {
-            self.layer.borderColor = nil
-        }
-        self.layer.masksToBounds = true
-    }
-    
-    /// 6. 快速实现半圆角效果（胶囊风格）
-    func configCapsuleStyle() {
-        let halfHeight = self.bounds.height / 2.0
-        self.renderSurface(radius: halfHeight, borderWidth: 0, borderColor: nil)
+        let configured = CAGradientLayer.x_gradient(colors: colors, direction: direction)
+        gradientLayer.colors = configured.colors
+        gradientLayer.startPoint = configured.startPoint
+        gradientLayer.endPoint = configured.endPoint
+        gradientLayer.frame = bounds
     }
 }
 
+private let XViewGradientLayerName = "xtool.gradient.layer"
+
+// MARK: - 交互限制
 public extension UIView {
-    /// 临时限制视图的交互能力（默认防刷时间为 0.5 秒）
-    /// - Parameter targetView: 需要限制交互的视图
+    private static var restrictTokenKey: UInt8 = 0
+    
+    /// 本次限制交互的代数 token（用于取消过期的恢复任务）
+    private var x_restrictToken: UInt {
+        get { objc_getAssociatedObject(self, &UIView.restrictTokenKey) as? UInt ?? 0 }
+        set { objc_setAssociatedObject(self, &UIView.restrictTokenKey, newValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC) }
+    }
+    
+    /// 临时禁用交互，防止短时间重复点击
+    /// - Parameters:
+    ///   - targetView: 目标视图
+    ///   - seconds: 禁用时长，默认 0.5 秒（负数按 0 处理）
+    /// - Note: 连续调用会作废上一次的恢复任务，避免提前重新启用
     @MainActor
-    static func restrictInteraction(for targetView: UIView,seconds:Double = 0.5) {
-        // 1. 禁用交互
+    static func x_restrictInteraction(for targetView: UIView, seconds: Double = 0.5) {
         targetView.isUserInteractionEnabled = false
+        targetView.x_restrictToken &+= 1
+        let token = targetView.x_restrictToken
+        let delay = max(0, seconds)
         
-        // 2. 开启一个现代化的异步任务来处理延迟恢复
-        Task { @MainActor in
-            try? await Task.sleep(for: .seconds(seconds))
-            
-            // 3. 恢复交互
+        Task { @MainActor [weak targetView] in
+            try? await Task.sleep(for: .seconds(delay))
+            guard let targetView, targetView.x_restrictToken == token else { return }
             targetView.isUserInteractionEnabled = true
         }
     }
 }
 
-//MARK: 手势扩展
+// MARK: - 手势
 public extension UIView {
-    /// 内部使用的闭包包装器
+    /// 闭包包装器，桥接为 Objective-C target
     private class ClosureWrapper: NSObject {
         let closure: () -> Void
-        init(_ closure: @escaping () -> Void) {
-            self.closure = closure
-        }
+        init(_ closure: @escaping () -> Void) { self.closure = closure }
         @objc func invoke() { closure() }
     }
     
-    /// 关联属性的 Key
-    private static var closureKey: UInt8 = 0
+    private static var tapWrappersKey: UInt8 = 0
     
-    /// 一行代码快速添加点击手势 (带闭包回调)
-    /// - Parameter action: 点击后的回调事件
+    /// 已绑定的手势闭包列表（支持多次添加，避免覆盖导致野指针）
+    private var x_tapWrappers: [ClosureWrapper] {
+        get { objc_getAssociatedObject(self, &UIView.tapWrappersKey) as? [ClosureWrapper] ?? [] }
+        set { objc_setAssociatedObject(self, &UIView.tapWrappersKey, newValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC) }
+    }
+    
+    /// 添加点击手势（闭包回调）
+    /// - Parameter action: 点击回调
+    /// - Note: 可多次调用；每次都会新增手势与对应 target
     func x_addTapGesture(action: @escaping () -> Void) {
-        self.isUserInteractionEnabled = true
+        isUserInteractionEnabled = true
         let target = ClosureWrapper(action)
-        
         let tap = UITapGestureRecognizer(target: target, action: #selector(ClosureWrapper.invoke))
-        self.addGestureRecognizer(tap)
+        addGestureRecognizer(tap)
         
-        // 动态绑定将 target 留在内存中
-        objc_setAssociatedObject(self, &UIView.closureKey, target, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+        var wrappers = x_tapWrappers
+        wrappers.append(target)
+        x_tapWrappers = wrappers
     }
 }
 
-//MARK: UI 布局快捷读写
+// MARK: - Frame 快捷读写
 public extension UIView {
-    var x_x: CGFloat {
+    /// frame.origin.x
+    var x_frameX: CGFloat {
         get { frame.origin.x }
         set { frame.origin.x = newValue }
     }
     
-    var x_y: CGFloat {
+    /// frame.origin.y
+    var x_frameY: CGFloat {
         get { frame.origin.y }
         set { frame.origin.y = newValue }
     }
     
+    /// frame.size.width
     var x_width: CGFloat {
         get { frame.size.width }
         set { frame.size.width = newValue }
     }
     
+    /// frame.size.height
     var x_height: CGFloat {
         get { frame.size.height }
         set { frame.size.height = newValue }
     }
     
+    /// frame.size
     var x_size: CGSize {
         get { frame.size }
         set { frame.size = newValue }
     }
-    
 }
