@@ -33,6 +33,8 @@ import CoreGraphics
 //        @XDecodableDefault<XDefaults.True> var enabled: Bool
 //    }
 
+// MARK: - 基础协议
+
 /// 可为类型提供解码失败时的默认值
 public protocol XDefaultable {
     static var x_defaultValue: Self { get }
@@ -100,22 +102,16 @@ public struct XDefault<T: Codable & XDefaultable>: Codable {
     }
 }
 
-nonisolated public extension KeyedDecodingContainer {
-    /// 不走 `XDefault.init(from:)` 的「先成功再兜底」，避免类型错误被吞成默认值后跳过弱转
-    func decode<T: Codable & XDefaultable>(
-        _ type: XDefault<T>.Type,
-        forKey key: Key
-    ) throws -> XDefault<T> {
-        XDefault(wrappedValue: x_decode(forKey: key))
-    }
-}
-
 // MARK: - @XDecodableDefault（自定义 Provider）
 
 /// 解码容错属性包装器：解析失败时回退到 `Provider.defaultValue`（含弱类型转换）
 @propertyWrapper
 public struct XDecodableDefault<Provider: XDefaultValueProvider>: Codable {
     public var wrappedValue: Provider.Value
+
+    public init(wrappedValue: Provider.Value) {
+        self.wrappedValue = wrappedValue
+    }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
@@ -134,17 +130,25 @@ public struct XDecodableDefault<Provider: XDefaultValueProvider>: Codable {
         wrappedValue = Provider.defaultValue
     }
 
-    public init(wrappedValue: Provider.Value) {
-        self.wrappedValue = wrappedValue
-    }
-    
     public func encode(to encoder: Encoder) throws {
         var container = encoder.singleValueContainer()
         try container.encode(wrappedValue)
     }
 }
 
+// MARK: - KeyedDecodingContainer 解码管道优化
+
 nonisolated public extension KeyedDecodingContainer {
+    
+    /// 重写 `@XDefault` 的容器解码入口
+    func decode<T: Codable & XDefaultable>(
+        _ type: XDefault<T>.Type,
+        forKey key: Key
+    ) throws -> XDefault<T> {
+        XDefault(wrappedValue: x_decodeValue(forKey: key, fallback: T.x_defaultValue))
+    }
+
+    /// 重写 `@XDecodableDefault` 的容器解码入口
     func decode<Provider: XDefaultValueProvider>(
         _ type: XDecodableDefault<Provider>.Type,
         forKey key: Key
@@ -152,22 +156,19 @@ nonisolated public extension KeyedDecodingContainer {
         let value: Provider.Value = x_decodeValue(forKey: key, fallback: Provider.defaultValue)
         return XDecodableDefault(wrappedValue: value)
     }
-    
-    /// 解码失败时回退到类型默认值（供 `@XResilientCodable` 宏生成的代码调用）
+
+    /// 供 `@XResilientCodable` 宏生成的代码调用
     func x_decode<T: Decodable & XDefaultable>(forKey key: Key) -> T {
         x_decodeValue(forKey: key, fallback: T.x_defaultValue)
     }
     
     /// Optional 字段：缺失 / null / 无法转换 → `nil`
     func x_decodeIfPresent<T: Decodable>(forKey key: Key) -> T? {
-        // 1. 尝试直接解码（Happy Path）
+        // 尝试直接解码（Happy Path）
         if let val = try? decodeIfPresent(T.self, forKey: key) {
             return val
         }
-        // 2. 字段不存在或显式 null 时返回 nil
         guard contains(key), (try? decodeNil(forKey: key)) == false else { return nil }
-        
-        // 3. 类型不匹配，尝试弱类型转换
         return XTypeCoercion.decodeLossy(from: self, forKey: key)
     }
     
@@ -175,18 +176,18 @@ nonisolated public extension KeyedDecodingContainer {
     func x_decodeStrict<T: Decodable>(forKey key: Key) throws -> T {
         try decode(T.self, forKey: key)
     }
-    
-    /// 统一：精确解码 → 弱转 → fallback
+
+    /// 统一核心解码流程：精确匹配 -> 缺失/null 回退 -> 弱类型转换 -> 最终 fallback
     fileprivate func x_decodeValue<T: Decodable>(forKey key: Key, fallback: T) -> T {
         // 1. 极速路径：类型完全匹配
         if let val = try? decodeIfPresent(T.self, forKey: key) {
             return val
         }
-        // 2. 缺失或 null，直接返回 fallback
+        // 2. 字段缺失或显式 null，直接返回 fallback
         guard contains(key), (try? decodeNil(forKey: key)) == false else {
             return fallback
         }
-        // 3. 类型不符合，走弱类型转换
+        // 3. 类型不符合，走弱类型容错转换
         if let coerced: T = XTypeCoercion.decodeLossy(from: self, forKey: key) {
             return coerced
         }
@@ -194,7 +195,7 @@ nonisolated public extension KeyedDecodingContainer {
     }
 }
 
-// MARK: - 内建默认可解码类型
+// MARK: - 内建类型扩展
 
 extension String: XDefaultable { public static var x_defaultValue: String { "" } }
 extension Bool: XDefaultable { public static var x_defaultValue: Bool { false } }
@@ -214,8 +215,8 @@ extension CGFloat: XDefaultable { public static var x_defaultValue: CGFloat { 0 
 extension Data: XDefaultable { public static var x_defaultValue: Data { Data() } }
 extension Decimal: XDefaultable { public static var x_defaultValue: Decimal { 0 } }
 extension URL: XDefaultable {
-    /// 解码失败时的占位 URL（非业务有效地址）
-    public static var x_defaultValue: URL { URL(string: "about:blank")! }
+    /// 修复：改用绝对安全的本地 Root 路径，彻底消除解包 Crash 风险
+    public static var x_defaultValue: URL { URL(fileURLWithPath: "/") }
 }
 extension Date: XDefaultable {
     public static var x_defaultValue: Date { Date(timeIntervalSince1970: 0) }
@@ -230,7 +231,7 @@ extension Set: XDefaultable where Element: Codable & Hashable {
     public static var x_defaultValue: Set<Element> { [] }
 }
 
-// MARK: - 弱类型转换
+// MARK: - 弱类型转换引擎 (XTypeCoercion)
 
 private enum XTypeCoercion {
     
@@ -238,7 +239,6 @@ private enum XTypeCoercion {
         from container: KeyedDecodingContainer<K>,
         forKey key: K
     ) -> T? {
-        // 使用 decodeIfPresent 防范递归并提升效率
         if let str = try? container.decodeIfPresent(String.self, forKey: key) {
             return coerce(str)
         }
@@ -246,8 +246,7 @@ private enum XTypeCoercion {
             return coerce(int64)
         }
         if let uint64 = try? container.decodeIfPresent(UInt64.self, forKey: key) {
-            if T.self == UInt64.self { return uint64 as? T }
-            if T.self == String.self { return String(uint64) as? T }
+            return coerce(uint64)
         }
         if let double = try? container.decodeIfPresent(Double.self, forKey: key) {
             return coerce(double)
@@ -266,8 +265,7 @@ private enum XTypeCoercion {
             return coerce(int64)
         }
         if let uint64 = try? container.decode(UInt64.self) {
-            if T.self == UInt64.self { return uint64 as? T }
-            if T.self == String.self { return String(uint64) as? T }
+            return coerce(uint64)
         }
         if let double = try? container.decode(Double.self) {
             return coerce(double)
@@ -277,14 +275,14 @@ private enum XTypeCoercion {
         }
         return nil
     }
-    
-    // MARK: String → T
-    
+
+    // MARK: - 转换逻辑分支
+
     private static func coerce<T: Decodable>(_ string: String) -> T? {
         let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
-        
-        if T.self == String.self { return trimmed as? T }
-        
+
+        if let val = trimmed as? T { return val }
+
         if T.self == Bool.self {
             switch trimmed.lowercased() {
             case "true", "1", "yes", "y": return true as? T
@@ -302,10 +300,7 @@ private enum XTypeCoercion {
         }
         
         if T.self == URL.self, !trimmed.isEmpty {
-            if let url = URL(string: trimmed) {
-                return url as? T
-            }
-            // 容错：中文 / 未 Percent Encoding 的 URL 补救
+            if let url = URL(string: trimmed) { return url as? T }
             if let encoded = trimmed.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
                let url = URL(string: encoded) {
                 return url as? T
@@ -322,7 +317,16 @@ private enum XTypeCoercion {
         if T.self == Bool.self { return (int64 != 0) as? T }
         return coerceNumber(NumberBox(int64: int64))
     }
-    
+
+    private static func coerce<T: Decodable>(_ uint64: UInt64) -> T? {
+        if T.self == String.self { return String(uint64) as? T }
+        if T.self == Bool.self { return (uint64 != 0) as? T }
+        if let i64 = Int64(exactly: uint64) {
+            return coerceNumber(NumberBox(int64: i64))
+        }
+        return coerceNumber(NumberBox(double: Double(uint64)))
+    }
+
     private static func coerce<T: Decodable>(_ double: Double) -> T? {
         if T.self == String.self {
             if double.rounded() == double, let i = Int64(exactly: double.rounded()) {
@@ -339,9 +343,9 @@ private enum XTypeCoercion {
         if T.self == Bool.self { return bool as? T }
         return coerceNumber(NumberBox(int64: bool ? 1 : 0))
     }
-    
-    // MARK: Number → numeric T
-    
+
+    // MARK: - 数值盒转换器
+
     private struct NumberBox {
         var int64: Int64?
         var double: Double?
@@ -392,7 +396,7 @@ private enum XTypeCoercion {
     }
 }
 
-// MARK: - Struct 级宏
+// MARK: - Struct 级宏定义
 
 /// 为 struct 生成容错 `Codable` 实现：字段缺失 / null / 类型不符时使用默认值；`Optional` 失败则为 `nil`
 ///

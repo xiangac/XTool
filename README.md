@@ -2,10 +2,12 @@
 
 面向 iOS 的 Swift Package 工具库，封装日常开发高频扩展。
 
-- **平台**：iOS 18+
+- **平台**：iOS 18+ / macOS 15+（UIKit 相关能力仅 iOS）
 - **语言**：Swift 6.2
 - **集成**：Swift Package Manager
-- **约定**：公开 API 统一 `x_` 前缀（类型用 `X` 前缀）
+- **约定**：公开 API 统一 `x_` 前缀（类型 / 协议 / 宏用 `X` 前缀）
+
+更完整的「文件职责 + 方法 / 属性」索引见 [`Sources/XTool/XTool.swift`](Sources/XTool/XTool.swift)。
 
 ---
 
@@ -33,28 +35,30 @@ UIButton.x_enableDebounce()
 
 ## 模块结构
 
-| 文件 | 职责 |
-|------|------|
-| `XAppInfo` | App 名称 / 版本 / Bundle ID |
-| `XDevice` | 屏幕、安全区、触觉、越狱、灵动岛 |
-| `XLayout` | 设计稿基准宽度、等比缩放 |
-| `XJSON` | JSON ↔ Model / Dictionary |
-| `XCodable` | 解码容错默认值 |
-| `XArray` | 数组安全下标 |
-| `XDate` | 日期格式化、北京时间、时长 |
-| `XString` | 校验、哈希、本地化、剪贴板 |
-| `XColor` | Hex 颜色、`@XColor` |
-| `XView` | 圆角 / 边框 / 渐变 / 手势 / Frame |
-| `XGraphics` | 渐变层工厂、缩放动画 |
-| `XImage` | 图片缩放压缩、渲染体检 |
-| `XButton` | 按钮防连击 |
-| `XFont` | 全局字体动态缩放 |
-| `XApplication` | Key Window / 根 VC / 顶层 VC |
-| `XViewController` | `XNavigationBarConfigurable` |
-| `XConcurrency` | 主线程通知、Task 防抖 |
-| `XKeychain` | Keychain 读写 |
-| `XURLRequest` | 幂等令牌、Body MD5 |
-| `XBundle` | Debug / TestFlight / App Store |
+| 文件 | 职责 | 主要 API |
+|------|------|----------|
+| `XAppInfo` | App 名称 / 版本 / Bundle ID | `appName` `appVersion` `fullVersion` … |
+| `XArray` | 数组安全下标 | `subscript(x_safe:)` |
+| `XApplication` | Key Window / 根 VC / 顶层 VC | `x_keyWindow()` `x_topViewController()` |
+| `XBundle` | Debug / TestFlight / App Store | `XAppEnvironment` `x_currentEnvironment` |
+| `XButton` | 按钮防连击 | `x_enableDebounce()` `x_debounceInterval` |
+| `XCodable` | 解码容错默认值 + 宏入口 | `@XDefault` `@XResilientCodable` |
+| `XColor` | Hex 颜色、`@XColor` | `UIColor(hex:)` `Color(hex:)` |
+| `XConcurrency` | 主线程通知、Task 防抖 | `x_postOnMainThread` `Task.x_debounce` |
+| `XDate` | 日期格式化、北京时间、时长 | `x_toString` `x_toRelativeString` … |
+| `XDevice` | 屏幕、安全区、触觉、越狱、灵动岛 | `x_screenWidth` `x_triggerHaptic` … |
+| `XFont` | 设计稿缩放 + Dynamic Type | `x_scaledSystemFont` |
+| `XGraphics` | 渐变层工厂、缩放动画 | `XGradientDirection` `x_gradient` |
+| `XImage` | 图片缩放压缩、渲染体检 | `x_resize` `x_compressTo` |
+| `XJSON` | JSON ↔ Model / Dictionary | `x_toModel` `x_toJSONString` |
+| `XKeychain` | Keychain 读写 | `save` `load` `remove` |
+| `XLayout` | 设计稿基准宽度、等比缩放 | `baseWidth` `x_scaled` |
+| `XLayoutMetricsCache` | （internal）布局度量缓存 | 经 `UIDevice` / `XLayout` 使用 |
+| `XString` | 校验、哈希、本地化、剪贴板 | `x_isValidEmail` `x_md5` … |
+| `XURLRequest` | 幂等令牌、Body MD5 | `x_addIdempotencyToken` `x_bodyChecksum` |
+| `XView` | 圆角 / 边框 / 渐变 / 手势 / Frame | `x_applyCornerRadius` `x_frameX` … |
+| `XViewController` | 导航栏配置协议 | `XNavigationBarConfigurable` |
+| `XToolMacros` | `@XResilientCodable` 宏实现 | 编译期生成容错 Codable |
 
 ---
 
@@ -67,6 +71,7 @@ UIButton.x_enableDebounce()
 "13800138000".x_isValidChinesePhoneNumber
 "123".x_isDigitsOnly
 "hello".x_md5
+"hello".x_sha256
 "title_key".x_localized
 "内容".x_copyToClipboard()           // 默认带震动
 "内容".x_copyToClipboard(haptic: false)
@@ -81,6 +86,7 @@ list[x_safe: 3]
 
 ```swift
 UIColor(hexString: "#07073C")
+UIColor(hex: 0xFF5733, alpha: 0.8)
 Color(hex: 0xFF5733, alpha: 0.8)
 
 label.x_width = 120.x_scaled
@@ -168,6 +174,7 @@ struct Product: Codable {
 ```swift
 var request = URLRequest(url: url)
 request.x_addIdempotencyToken()
+_ = request.x_bodyChecksum
 
 searchTask?.cancel()
 searchTask = Task.x_debounce(seconds: 0.3) {
@@ -175,6 +182,8 @@ searchTask = Task.x_debounce(seconds: 0.3) {
 }
 
 XKeychain.save("token", forKey: "auth")
+_ = XKeychain.load(forKey: "auth")
+XKeychain.remove(forKey: "auth")
 ```
 
 ---
@@ -182,5 +191,7 @@ XKeychain.save("token", forKey: "auth")
 ## 测试
 
 ```bash
+swift build
+# 或
 xcodebuild -scheme XTool -destination 'generic/platform=iOS' build
 ```
