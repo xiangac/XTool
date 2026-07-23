@@ -9,6 +9,40 @@ import Foundation
 import UIKit
 import CryptoKit
 
+// MARK: - 空白 / 裁剪
+public extension String {
+    /// 去除首尾空白与换行
+    var x_trimmed: String {
+        trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    
+    /// 去空白后是否为空（含纯空格 / 换行）
+    var x_isBlank: Bool {
+        x_trimmed.isEmpty
+    }
+    
+    /// 空白则返回 `nil`，否则返回去空白后的字符串
+    var x_nilIfBlank: String? {
+        let trimmed = x_trimmed
+        return trimmed.isEmpty ? nil : trimmed
+    }
+}
+
+public extension Optional where Wrapped == String {
+    /// `nil` 或空白字符串视为 blank
+    var x_isBlank: Bool {
+        switch self {
+        case .none: true
+        case .some(let value): value.x_isBlank
+        }
+    }
+    
+    /// `nil` / 空白 → `nil`；否则返回去空白后的字符串
+    var x_nilIfBlank: String? {
+        self?.x_nilIfBlank
+    }
+}
+
 // MARK: - 校验
 public extension String {
     /// 是否合法邮箱

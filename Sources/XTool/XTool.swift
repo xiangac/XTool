@@ -18,8 +18,12 @@
 /// - `XAppInfo.appName` / `appVersion` / `appBuildVersion` / `bundleID` / `fullVersion`
 ///
 /// ## XArray.swift
-/// 数组安全访问。
+/// 数组安全访问与集合高频操作。
 /// - `Array.subscript(x_safe:)` — 越界返回 `nil`
+/// - `Sequence.x_unique`（`Element: Hashable`）— 去重保序
+/// - `Collection.x_chunked(into:)` — 按大小切块
+/// - `Sequence.x_grouped(by:)` — 闭包 / KeyPath 分组
+/// - `Dictionary.x_compactMapValues(_:)` — 映射并丢弃 `nil`
 ///
 /// ## XApplication.swift
 /// Scene 体系下定位窗口与顶层 VC。
@@ -57,8 +61,9 @@
 /// - `Task.x_debounce(seconds:operation:)`
 ///
 /// ## XDate.swift
-/// 日期格式化、相对时间、北京时间、时长与时间戳。
+/// 日期格式化、相对时间、北京时间、时长与时间戳、日历语义。
 /// - `Date.x_toString(format:)` / `Date.x_from(_:format:)` / `x_toRelativeString`
+/// - `x_isToday` / `x_isYesterday` / `x_startOfDay` / `x_days(from:)`
 /// - `Date.x_dateString(fromTimestamp:format:)`
 /// - `Date.x_currentBeijingTimeString()` / `x_beijingTimeString(from:offsetMinutes:)`
 /// - `Date.x_seconds(from:to:)` / `x_microsecondTimestampString()` / `x_formatVideoDuration(_:)`
@@ -113,12 +118,18 @@
 /// - `UIDevice.x_invalidateLayoutMetrics()` / `x_invalidateChromeMetrics()` 触发失效
 ///
 /// ## XString.swift
-/// 字符串校验、哈希、测高、本地化、剪贴板。
+/// 字符串空白处理、校验、哈希、测高、本地化、剪贴板。
+/// - `x_trimmed` / `x_isBlank` / `x_nilIfBlank`（含 `String?`）
 /// - `x_isValidEmail` / `x_isValidChinesePhoneNumber` / `x_isDigitsOnly`
 /// - `x_md5` / `x_sha256` / `x_base64Encoded` / `x_base64Decoded`
 /// - `x_height(withWidth:font:)`
 /// - `x_localized` / `x_localized(with:)`
 /// - `x_copyToClipboard(haptic:)`
+///
+/// ## XUserDefaults.swift
+/// UserDefaults 的 `Codable` 读写封装。
+/// - `UserDefaults.x_setCodable(_:forKey:)` / `x_codable(_:forKey:)` /
+///   `x_remove(forKey:)` / `x_contains(key:)`
 ///
 /// ## XURLRequest.swift
 /// 请求幂等令牌与 Body 校验和。

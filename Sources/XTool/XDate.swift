@@ -54,6 +54,35 @@ public extension Date {
     }
 }
 
+// MARK: - 日历语义
+public extension Date {
+    /// 是否为今天（按当前日历）
+    var x_isToday: Bool {
+        Calendar.current.isDateInToday(self)
+    }
+    
+    /// 是否为昨天（按当前日历）
+    var x_isYesterday: Bool {
+        Calendar.current.isDateInYesterday(self)
+    }
+    
+    /// 当天 00:00:00（按当前日历）
+    var x_startOfDay: Date {
+        Calendar.current.startOfDay(for: self)
+    }
+    
+    /// 相对 `date` 的整天差（`self` − `date`，按日切分；可为负）
+    /// - Example: 今天相对昨天为 `1`，昨天相对今天为 `-1`
+    func x_days(from date: Date) -> Int {
+        let calendar = Calendar.current
+        return calendar.dateComponents(
+            [.day],
+            from: calendar.startOfDay(for: date),
+            to: calendar.startOfDay(for: self)
+        ).day ?? 0
+    }
+}
+
 // MARK: - 时间戳 / 北京时间 / 时长
 public extension Date {
     /// 将 Unix 时间戳转为日期字符串

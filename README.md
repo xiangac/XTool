@@ -38,14 +38,14 @@ UIButton.x_enableDebounce()
 | 文件 | 职责 | 主要 API |
 |------|------|----------|
 | `XAppInfo` | App 名称 / 版本 / Bundle ID | `appName` `appVersion` `fullVersion` … |
-| `XArray` | 数组安全下标 | `subscript(x_safe:)` |
+| `XArray` | 安全下标、去重 / 分块 / 分组 | `x_safe` `x_unique` `x_chunked` `x_grouped` |
 | `XApplication` | Key Window / 根 VC / 顶层 VC | `x_keyWindow()` `x_topViewController()` |
 | `XBundle` | Debug / TestFlight / App Store | `XAppEnvironment` `x_currentEnvironment` |
 | `XButton` | 按钮防连击 | `x_enableDebounce()` `x_debounceInterval` |
 | `XCodable` | 解码容错默认值 + 宏入口 | `@XDefault` `@XResilientCodable` |
 | `XColor` | Hex 颜色、`@XColor` | `UIColor(hex:)` `Color(hex:)` |
 | `XConcurrency` | 主线程通知、Task 防抖 | `x_postOnMainThread` `Task.x_debounce` |
-| `XDate` | 日期格式化、北京时间、时长 | `x_toString` `x_toRelativeString` … |
+| `XDate` | 日期格式化、北京时间、时长、日历语义 | `x_toString` `x_isToday` `x_days(from:)` … |
 | `XDevice` | 屏幕、安全区、触觉、越狱、灵动岛 | `x_screenWidth` `x_triggerHaptic` … |
 | `XFont` | 设计稿缩放 + Dynamic Type | `x_scaledSystemFont` |
 | `XGraphics` | 渐变层工厂、缩放动画 | `XGradientDirection` `x_gradient` |
@@ -54,7 +54,8 @@ UIButton.x_enableDebounce()
 | `XKeychain` | Keychain 读写 | `save` `load` `remove` |
 | `XLayout` | 设计稿基准宽度、等比缩放 | `baseWidth` `x_scaled` |
 | `XLayoutMetricsCache` | （internal）布局度量缓存 | 经 `UIDevice` / `XLayout` 使用 |
-| `XString` | 校验、哈希、本地化、剪贴板 | `x_isValidEmail` `x_md5` … |
+| `XString` | 空白处理、校验、哈希、本地化、剪贴板 | `x_trimmed` `x_isBlank` `x_md5` … |
+| `XUserDefaults` | UserDefaults Codable 读写 | `x_setCodable` `x_codable` `x_remove` |
 | `XURLRequest` | 幂等令牌、Body MD5 | `x_addIdempotencyToken` `x_bodyChecksum` |
 | `XView` | 圆角 / 边框 / 渐变 / 手势 / Frame | `x_applyCornerRadius` `x_frameX` … |
 | `XViewController` | 导航栏配置协议 | `XNavigationBarConfigurable` |
@@ -67,6 +68,11 @@ UIButton.x_enableDebounce()
 ### 字符串 / JSON
 
 ```swift
+"  hi  ".x_trimmed                      // "hi"
+"   ".x_isBlank                         // true
+"  ".x_nilIfBlank                       // nil
+optionalName.x_nilIfBlank               // String? 同样可用
+
 "demo@mail.com".x_isValidEmail
 "13800138000".x_isValidChinesePhoneNumber
 "123".x_isDigitsOnly
@@ -80,6 +86,10 @@ jsonStr.x_toModel(User.self)
 jsonStr.x_toDictionary                 // 失败为 nil，可与 {} 区分
 model.x_toJSONString
 list[x_safe: 3]
+[1, 2, 2, 3].x_unique                 // [1, 2, 3]
+[1, 2, 3, 4, 5].x_chunked(into: 2)    // [[1, 2], [3, 4], [5]]
+orders.x_grouped(by: \.status)
+(["a": 1, "b": 2] as [String: Int]).x_compactMapValues { $0 > 1 ? $0 : nil }  // ["b": 2]
 ```
 
 ### 颜色 / 布局
@@ -98,10 +108,23 @@ CGFloat(3.14159).x_roundTo(places: 2)
 ```swift
 Date().x_toString(format: "yyyy-MM-dd HH:mm:ss")
 Date().x_toRelativeString
+Date().x_isToday
+Date().x_isYesterday
+Date().x_startOfDay
+Date().x_days(from: yesterday)      // 整天差，可为负
 Date.x_currentBeijingTimeString()
 Date.x_dateString(fromTimestamp: 1_700_000_000)
 Date.x_formatVideoDuration(95)      // "01:35"
 Date.x_microsecondTimestampString()
+```
+
+### UserDefaults
+
+```swift
+UserDefaults.standard.x_setCodable(user, forKey: "user")
+let user: User? = UserDefaults.standard.x_codable(User.self, forKey: "user")
+UserDefaults.standard.x_contains(key: "user")
+UserDefaults.standard.x_remove(forKey: "user")
 ```
 
 ### UI
