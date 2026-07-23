@@ -23,6 +23,21 @@ dependencies: [
 import XTool
 ```
 
+### 可选：struct 级容错 Codable 宏
+
+需要 `@XResilientCodable` 时，额外引入 `XToolCodableMacros`（依赖 `swift-syntax`，编译较重）：
+
+```swift
+dependencies: [
+    .package(url: "https://github.com/xiangac/XTool.git", from: "2.0.1"),
+    .package(path: "XTool/XToolCodableMacros"), // 同仓库本地路径；远程发布后可改为 URL
+]
+```
+
+```swift
+import XToolCodableMacros   // 已 re-export XTool
+```
+
 ## 启动建议
 
 ```swift
@@ -42,7 +57,7 @@ UIButton.x_enableDebounce()
 | `XApplication` | Key Window / 根 VC / 顶层 VC | `x_keyWindow()` `x_topViewController()` |
 | `XBundle` | Debug / TestFlight / App Store | `XAppEnvironment` `x_currentEnvironment` |
 | `XButton` | 按钮防连击 | `x_enableDebounce()` `x_debounceInterval` |
-| `XCodable` | 解码容错默认值 + 宏入口 | `@XDefault` `@XResilientCodable` |
+| `XCodable` | 解码容错默认值 | `@XDefault` `@XDecodableDefault` |
 | `XColor` | Hex 颜色、`@XColor` | `UIColor(hex:)` `Color(hex:)` |
 | `XConcurrency` | 主线程通知、Task 防抖 | `x_postOnMainThread` `Task.x_debounce` |
 | `XDate` | 日期格式化、北京时间、时长、日历语义 | `x_toString` `x_isToday` `x_days(from:)` … |
@@ -59,7 +74,8 @@ UIButton.x_enableDebounce()
 | `XURLRequest` | 幂等令牌、Body MD5 | `x_addIdempotencyToken` `x_bodyChecksum` |
 | `XView` | 圆角 / 边框 / 渐变 / 手势 / Frame | `x_applyCornerRadius` `x_frameX` … |
 | `XViewController` | 导航栏配置协议 | `XNavigationBarConfigurable` |
-| `XToolMacros` | `@XResilientCodable` 宏实现 | 编译期生成容错 Codable |
+
+独立包 `XToolCodableMacros`：`@XResilientCodable` struct 级容错 Codable 宏。
 
 ---
 
@@ -175,7 +191,9 @@ class HomeVC: UIViewController, XNavigationBarConfigurable {
 ### JSON 容错
 
 ```swift
-// 推荐：整个 struct 容错（缺失 / null / 类型不符 → 默认值；Optional → nil）
+// struct 级容错（需 XToolCodableMacros）
+import XToolCodableMacros
+
 @XResilientCodable
 struct Product: Codable {
     var price: Int
@@ -184,7 +202,7 @@ struct Product: Codable {
     var note: String?
 }
 
-// 或单字段：
+// 或单字段（仅 XTool）：
 struct Product: Codable {
     @XDefault var price: Int
     @XDefault var name: String
@@ -215,6 +233,8 @@ XKeychain.remove(forKey: "auth")
 
 ```bash
 swift build
+# 可选宏包
+cd XToolCodableMacros && swift build
 # 或
 xcodebuild -scheme XTool -destination 'generic/platform=iOS' build
 ```

@@ -40,14 +40,14 @@
 /// - `UIButton.x_enableDebounce()` — 启动时调用一次
 ///
 /// ## XCodable.swift
-/// Codable 容错解码（属性包装器 + 弱类型转换 + 宏入口）。
+/// Codable 容错解码（属性包装器 + 弱类型转换）。
 /// - 协议：`XDefaultable` / `XDefaultValueProvider`
 /// - `XDefaults`：`EmptyString` / `EmptyArray` / `EmptyDictionary` / `EmptyData` /
 ///   `False` / `True` / `Zero` / `ZeroInt64` / `ZeroDouble` / `ZeroFloat` /
 ///   `ZeroCGFloat` / `ZeroDecimal` / `Epoch`
 /// - `@XDefault` / `@XDecodableDefault`
 /// - `KeyedDecodingContainer.x_decode(forKey:)` / `x_decodeIfPresent(forKey:)` / `x_decodeStrict(forKey:)`
-/// - `@XResilientCodable` — struct 级容错宏（实现见 XToolMacros）
+/// - struct 级 `@XResilientCodable` 见独立包 `XToolCodableMacros`
 ///
 /// ## XColor.swift
 /// 十六进制颜色与统一包装器。
@@ -153,6 +153,6 @@
 ///   `x_setNavLeftTitle(_:)`
 /// - `x_presentFullScreen(_:style:animated:completion:)`
 ///
-/// ## XToolMacros / XResilientCodableMacro.swift
-/// 编译期宏：为 struct 生成容错 `CodingKeys` / `init(from:)` / `encode(to:)`。
-/// - 对外入口：`@XResilientCodable`（声明于 `XCodable.swift`）
+/// ## XToolCodableMacros（独立 Swift Package）
+/// struct 级容错 Codable 宏，依赖 `XTool` 运行时解码能力。
+/// - 对外入口：`@XResilientCodable`（`import XToolCodableMacros`）

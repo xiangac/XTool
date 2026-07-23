@@ -10,7 +10,9 @@ import CoreGraphics
 
 // MARK: - 用法
 //
-// 1) 推荐：struct 级容错（缺失 / null / 类型不符 → 类型默认值；支持 "100"→Int 等弱转）
+// 1) struct 级容错：使用 XToolCodableMacros 包的 @XResilientCodable
+//
+//    import XToolCodableMacros
 //
 //    @XResilientCodable
 //    struct Product: Codable {
@@ -395,19 +397,3 @@ private enum XTypeCoercion {
         return nil
     }
 }
-
-// MARK: - Struct 级宏定义
-
-/// 为 struct 生成容错 `Codable` 实现：字段缺失 / null / 类型不符时使用默认值；`Optional` 失败则为 `nil`
-///
-/// ```swift
-/// @XResilientCodable
-/// struct Product: Codable {
-///     var id: Int
-///     var name: String
-///     var tags: [String]
-///     var note: String?
-/// }
-/// ```
-@attached(member, names: named(init(from:)), named(encode(to:)), named(CodingKeys))
-public macro XResilientCodable() = #externalMacro(module: "XToolMacros", type: "XResilientCodableMacro")
