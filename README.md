@@ -15,7 +15,7 @@
 
 ```swift
 dependencies: [
-    .package(url: "你的仓库地址", from: "1.0.0")
+    .package(url: "https://github.com/xiangac/XTool.git", from: "2.0.1")
 ]
 ```
 
