@@ -15,7 +15,7 @@
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/xiangac/XTool.git", from: "2.0.1")
+    .package(url: "https://github.com/xiangac/XTool.git", from: "3.1.0")
 ]
 ```
 
@@ -30,7 +30,7 @@ import XTool
 ```swift
 dependencies: [
     .package(url: "https://github.com/xiangac/XTool.git", from: "2.0.1"),
-    .package(path: "XTool/XToolCodableMacros"), // 同仓库本地路径；远程发布后可改为 URL
+    .package(url: "https://github.com/xiangac/XToolCodableMacros.git", from: "1.0.0"), 
 ]
 ```
 
